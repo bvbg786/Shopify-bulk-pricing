@@ -1,0 +1,194 @@
+{% comment %}
+---------------------------------------------------------
+Bulk Pricing Section
+
+Simple idea:
+We show a pricing table based on quantity.
+
+Instead of hardcoding prices, we pull everything from
+a metafield → product.metafields.custom.bulk_pricing
+
+Each item in that metafield should look like:
+{ min: 1, max: 5, price: 10 }
+
+If "max" is missing → it just means "and above"
+---------------------------------------------------------
+{% endcomment %}
+
+{% if product.metafields.custom.bulk_pricing != blank %}
+
+  {% comment %}
+  Just storing the metafield data in a variable
+  so it's easier to loop through
+  {% endcomment %}
+  {% assign pricing_tiers = product.metafields.custom.bulk_pricing.value %}
+
+  <div class="bulk-pricing-section">
+
+    <h4 class="bulk-pricing-title">Bulk Pricing</h4>
+
+    <table class="bulk-pricing-table">
+      <thead>
+        <tr>
+          <th>Quantity</th>
+          <th>Price per unit</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        {% comment %}
+        Loop through each pricing tier and print a row
+        {% endcomment %}
+        {% for tier in pricing_tiers %}
+
+          <tr 
+            class="pricing-row"
+
+            {% comment %}
+            These data attributes are important.
+            JS will read them to figure out which row to highlight.
+            {% endcomment %}
+            data-min="{{ tier.min }}"
+            data-max="{{ tier.max | default: '' }}"
+          >
+
+            <td>
+              {% comment %}
+              If max exists → show range (1–5)
+              If not → show something like 10+
+              {% endcomment %}
+              {% if tier.max %}
+                {{ tier.min }} – {{ tier.max }}
+              {% else %}
+                {{ tier.min }}+
+              {% endif %}
+            </td>
+
+            <td>
+              ${{ tier.price }}
+            </td>
+
+          </tr>
+
+        {% endfor %}
+      </tbody>
+    </table>
+
+  </div>
+
+
+  {% comment %}
+  Basic styling — nothing fancy, just clean and readable
+  {% endcomment %}
+  <style>
+
+    .bulk-pricing-section {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+
+    .bulk-pricing-title {
+      margin-bottom: 15px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .bulk-pricing-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .bulk-pricing-table th,
+    .bulk-pricing-table td {
+      padding: 12px;
+      text-align: center;
+      border: 1px solid #e5e5e5;
+    }
+
+    .bulk-pricing-table th {
+      background: #fff;
+    }
+
+    {% comment %}
+    This is the highlight color when a tier is active
+    {% endcomment %}
+    .pricing-row.active {
+      background: #d4edda;
+      font-weight: 600;
+    }
+
+    .bulk-pricing-note {
+      font-size: 13px;
+      color: #666;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+  </style>
+
+
+  {% comment %}
+  JS part
+  It checks the quantity and highlights the right row
+  {% endcomment %}
+  <script>
+
+    document.addEventListener('DOMContentLoaded', function () {
+
+      // Grab the quantity input (Shopify default selector)
+      const qtyInput = document.querySelector('input[name="quantity"]');
+
+      // Grab all rows
+      const rows = document.querySelectorAll('.pricing-row');
+
+      // If something's missing, just exit quietly
+      if (!qtyInput || rows.length === 0) return;
+
+
+      // This function figures out which tier is active
+      function updateActiveTier() {
+
+        // Get current quantity (fallback to 1 just in case)
+        const qty = parseInt(qtyInput.value) || 1;
+
+        rows.forEach(row => {
+
+          const min = parseInt(row.dataset.min) || 1;
+
+          // If max is not set → treat it as unlimited
+          const max = row.dataset.max ? parseInt(row.dataset.max) : Infinity;
+
+          // If quantity fits in this range → highlight it
+          if (qty >= min && qty <= max) {
+            row.classList.add('active');
+          } else {
+            row.classList.remove('active');
+          }
+
+        });
+      }
+
+
+      // Run once when page loads
+      updateActiveTier();
+
+      // Run whenever quantity changes
+      qtyInput.addEventListener('input', updateActiveTier);
+      qtyInput.addEventListener('change', updateActiveTier);
+
+      {% comment %}
+      Shopify triggers this event when variant changes
+      We re-run the logic just to be safe
+      {% endcomment %}
+      document.addEventListener('variant:changed', function () {
+        setTimeout(updateActiveTier, 100);
+      });
+
+    });
+
+  </script>
+
+{% endif %}
